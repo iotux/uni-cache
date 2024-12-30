@@ -1,0 +1,44 @@
+{
+  "name": "uni-cache",
+  "version": "0.0.1",
+  "description": "A versatile caching library with support for in-memory, file, Redis, and MongoDB backends, offering flexible storage and synchronization options.",
+  "main": "UniCache.js",
+  "scripts": {
+    "test": "echo \"No tests specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/iotux/uni-cache.git"
+  },
+  "keywords": [
+    "cache",
+    "caching",
+    "key-value store",
+    "redis",
+    "mongodb",
+    "file storage",
+    "in-memory",
+    "node.js",
+    "backend",
+    "data storage",
+    "synchronization",
+    "ttl",
+    "key-value",
+    "storage",
+    "persistence",
+    "javascript",
+    "server",
+    "nodejs library"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "mongodb": "^5.1.0",
+    "redis": "^4.6.7"
+  },
+  "devDependencies": {},
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
+
