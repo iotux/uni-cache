@@ -1,7 +1,7 @@
 {
   "name": "uni-cache",
   "version": "0.0.1",
-  "description": "A versatile caching library with support for in-memory, file, Redis, and MongoDB backends, offering flexible storage and synchronization options.",
+  "description": "A versatile caching library with support for in-memory, file, ValKey, Redis, and MongoDB backends, offering flexible storage and synchronization options.",
   "main": "UniCache.js",
   "scripts": {
     "test": "echo \"No tests specified\" && exit 1"
@@ -14,6 +14,7 @@
     "cache",
     "caching",
     "key-value store",
+    "valkey",
     "redis",
     "mongodb",
     "file storage",
@@ -30,7 +31,7 @@
     "server",
     "nodejs library"
   ],
-  "author": "Your Name",
+  "author": "iotux",
   "license": "MIT",
   "dependencies": {
     "mongodb": "^5.1.0",

@@ -1,11 +1,11 @@
-# UniCache
+# Uni-Cache
 
-**UniCache** is a versatile caching library for Node.js that supports in-memory, file-based, Redis, MongoDB, and ValKey backends. It provides flexible storage and synchronization options for key-value pairs, enabling efficient data management for a variety of applications.
+**Uni-Cache** is a versatile caching library for Node.js that supports in-memory, file-based, Redis, MongoDB, and ValKey backends. It provides flexible storage and synchronization options for key-value pairs, enabling efficient data management for a variety of applications.
 
 ---
 
 ## Table of Contents
-- [UniCache](#unicache)
+- [Uni-Cache](#uni-cache)
   - [Table of Contents](#table-of-contents)
   - [Features](#features)
   - [Installation](#installation)
@@ -41,7 +41,7 @@
 Install the package using npm:
 
 ```bash
-npm install unicache
+npm install uni-cache
 ```
 
 ---
@@ -51,10 +51,10 @@ npm install unicache
 ### Initialization
 
 ```javascript
-const UniCache = require('unicache');
+const Uni-Cache = require('uni-cache');
 
 // Create an in-memory cache
-const cache = new UniCache('myCache', {
+const cache = new Uni-Cache('myCache', {
   cacheType: 'memory', // Options: 'memory', 'file', 'redis', 'mongodb', 'valkey'
   syncOnWrite: true,
   debug: true,
@@ -119,7 +119,7 @@ const cache = new UniCache('myCache', {
 ### In-Memory Cache
 
 ```javascript
-const cache = new UniCache('myCache', {
+const cache = new Uni-Cache('myCache', {
   cacheType: 'memory',
   debug: true,
 });
@@ -137,7 +137,7 @@ console.log(await cache.get('user.hobbies')); // ['Reading']
 ### File Backend
 
 ```javascript
-const cache = new UniCache('myCache', {
+const cache = new Uni-Cache('myCache', {
   cacheType: 'file',
   savePath: './cache',
   syncOnWrite: true,
@@ -151,7 +151,7 @@ await cache.sync(); // Force sync to backend
 ### Redis Backend
 
 ```javascript
-const cache = new UniCache('myCache', {
+const cache = new Uni-Cache('myCache', {
   cacheType: 'redis',
   redisConfig: { host: '127.0.0.1', port: 6379 },
 });
@@ -164,7 +164,7 @@ await cache.close(); // Close Redis connection
 ### MongoDB Backend
 
 ```javascript
-const cache = new UniCache('myCache', {
+const cache = new Uni-Cache('myCache', {
   cacheType: 'mongodb',
   mongoUri: 'mongodb://localhost:27017',
   dbName: 'cacheDB',
@@ -183,7 +183,7 @@ await cache.close(); // Close MongoDB connection
 The ValKey backend currently shares its implementation with RedisBackend but is ready for future changes as ValKey matures.
 
 ```javascript
-const cache = new UniCache('myCache', {
+const cache = new Uni-Cache('myCache', {
   cacheType: 'valkey',
   redisConfig: { host: '127.0.0.1', port: 6379 }, // Compatible with ValKey
   debug: true,
