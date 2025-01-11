@@ -6,21 +6,41 @@ class FileBackend extends CacheBackend {
   constructor(config) {
     super();
     this.filePath = `${config.savePath}/${config.cacheName}.json`;
-    this.syncInterval = config.syncInterval || 86400; // Default 24 hours
-    this.syncOnWrite = config.syncOnWrite || false;
-    this.syncOnClose = config.syncOnClose || false;
     this.debug = config.debug || false;
+    this.log = config.logFunction || (() => {});
+    this.ensureDirectoryExists(config.savePath || './data');
+    if (this.debug) {
+      this.log(`[UniCache] Using FileBackend for ${config.cacheName}`);
+    }
+  }
 
-    if (this.syncInterval) {
-      setInterval(() => {
-        const data = this.fetch();
-        this.save(data);
-      }, this.syncInterval * 1000);
+  async ensureDirectoryExists(dir) {
+    try {
+      await fs.access(dir);
+      //if (this.debug) this.log(`[FileBackend] Directory already exists: ${dir}`);
+    } catch {
+      await fs.mkdir(dir, { recursive: true });
+      if (this.debug) this.log(`[FileBackend] Directory created: ${dir}`);
+    }
+  }
+
+  async existsObject(key) {
+    //const fileName = path.join(path.dirname(this.filePath), `${key}.json`);
+    const fileName = `${this.savePath}/${key}.json`;
+    this.log('FileBackend existsObject', fileName);
+    try {
+      await fs.access(fileName);
+      if (this.debug) this.log(`[FileBackend] File exists: ${fileName}`);
+      return true;
+    } catch {
+      if (this.debug) this.log(`[FileBackend] File does not exist: ${fileName}`);
+      return false;
     }
   }
 
   async save(data) {
     await fs.writeFile(this.filePath, JSON.stringify(data, null, 2), 'utf8');
+    if (this.debug) this.log(`[FileBackend] Data saved to ${this.filePath}`);
   }
 
   async fetch() {

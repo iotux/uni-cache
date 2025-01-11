@@ -41,7 +41,7 @@
 Install the package using npm:
 
 ```bash
-npm install uni-cache
+npm install @iotux/uni-cache
 ```
 
 ---

@@ -4,7 +4,9 @@ const CacheBackend = require('./CacheBackend');
 class MongoDBBackend extends CacheBackend {
   constructor(config) {
     super();
-    this.uri = config.mongoUri || 'mongodb://localhost:27017';
+    this.dbHost = config.dbHost || 'localhost';
+    this.dbPort = config.dbPort || 27017;
+    this.uri = `mongodb://${this.dbHost}:${this.dbPort}`;
     this.dbName = config.dbName || 'cacheDB';
     this.collectionName = config.collectionName || 'cache';
     this.debug = config.debug || false;

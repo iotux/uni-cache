@@ -1,6 +1,6 @@
 {
   "name": "@iotux/uni-cache",
-  "version": "0.0.1",
+  "version": "0.0.3",
   "description": "A versatile caching library with support for in-memory, file, ValKey, Redis, and MongoDB backends, offering flexible storage and synchronization options.",
   "main": "src/UniCache.js",
   "scripts": {
@@ -37,9 +37,7 @@
     "mongodb": "^5.1.0",
     "redis": "^4.6.7"
   },
-  "devDependencies": {},
   "engines": {
     "node": ">=14.0.0"
   }
 }
-

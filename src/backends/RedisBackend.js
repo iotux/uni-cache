@@ -5,31 +5,32 @@ const CacheBackend = require('./CacheBackend');
 class RedisBackend extends CacheBackend {
   constructor(config) {
     super();
-    this.client = createClient(config.redisConfig);
-    this.client.on('error', (err) => console.error('Redis Client Error', err));
-    this.redisKey = config.cacheName;
-    this.syncInterval = config.syncInterval || 86400; // Default 24 hours
-    this.syncOnWrite = config.syncOnWrite || false;
-    this.syncOnClose = config.syncOnClose || false;
-    this.debug = config.debug || false;
+    this.dbHost = config.dbHost || 'localhost';
+    this.dbPort = config.dbPort || 6379;
+    this.cacheName = config.cacheName;
 
-    if (this.syncInterval) {
-      setInterval(() => {
-        this.save();
-      }, this.syncInterval * 1000);
-    }
+    this.debug = config.debug || false;
+    this.log = config.logFunction || (() => {});
+
+    this.uri = `redis://${this.dbHost}:${this.dbPort}`;
+    this.client = createClient({ url: this.uri });
+    this.client.on('error', (err) => console.error('Redis Client Error', err));
   }
 
   async connect() {
-    await this.client.connect();
+    if (!this.client.isOpen) {
+      await this.client.connect();
+      if (this.debug) this.log(`[RedisBackend] Connected to Redis at ${this.uri}`);
+    }
   }
 
   async save(data) {
-    await this.client.set(this.redisKey, JSON.stringify(data));
+    await this.client.set(this.cacheName, JSON.stringify(data));
+    if (this.debug) this.log(`[RedisBackend] Data saved to Redis`);
   }
 
   async fetch() {
-    const data = await this.client.get(this.redisKey);
+    const data = await this.client.get(this.cacheName);
     return JSON.parse(data);
   }
 
