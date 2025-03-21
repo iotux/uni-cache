@@ -46,6 +46,11 @@ class UniCache {
     // Initialize backend if required
     this.initializeBackend();
 
+    // Setup signal handling if syncOnBreak is enabled
+    if (this.options.syncOnBreak) {
+      this.setupSignalHandlers();
+    }
+
     //if (options.syncInterval) {
     setInterval(() => this.sync(), options.syncInterval * 1000 || 86400000);
     //}
@@ -105,6 +110,26 @@ class UniCache {
     } else {
       this.log(`[UniCache] Cache ${this.cacheName} does not exist. Starting fresh.`);
     }
+  }
+
+    // Signal handling for clean shutdown
+  setupSignalHandlers() {
+    const gracefulShutdown = async (signal) => {
+      console.log(`\n[UniCache] Received ${signal}, shutting down...`);
+
+      try {
+        this.log('[UniCache] Syncing cache before exit...');
+        await this.sync();
+        this.log('[UniCache] Cache sync completed.');
+      } catch (error) {
+        console.error('[UniCache] Error syncing cache:', error);
+      }
+
+      process.exit(0);
+    };
+
+    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
   }
 
   // Check if the cache object exists in the backend and populate inMemoryData if it does
