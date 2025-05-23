@@ -1,191 +1,385 @@
-// Source: ./src/UniCache.js
+// src/UniCache.js
+
 /**
  * Get properties from an object using a key string with dot notation.
  * @param {object} obj - The object containing the properties.
- * @param {string} key - The key string in dot notation.
+ * @param {string|string[]} key - The key string in dot notation or an array of properties.
  * @returns {*} The value at the specified key or undefined.
  */
 const getProperties = (obj, key) => {
   const props = Array.isArray(key) ? key : key.split('.');
+  let current = obj;
   for (const prop of props) {
-    if (obj === null || obj === undefined) return undefined;
-    obj = obj[prop];
+    if (current === null || typeof current !== 'object') return undefined;
+    if (!Object.prototype.hasOwnProperty.call(current, prop)) return undefined;
+    current = current[prop];
   }
-  return obj;
+  return current;
 };
 
 /**
  * Set properties on an object using a key string with dot notation.
+ * Creates intermediate objects if they don't exist.
  * @param {object} obj - The object to set the properties on.
- * @param {string} key - The key string in dot notation.
+ * @param {string|string[]} key - The key string in dot notation or an array of properties.
  * @param {*} val - The value to set at the specified key.
  */
 const setProperties = (obj, key, val) => {
   const props = Array.isArray(key) ? key : key.split('.');
   let target = obj;
   for (let i = 0; i < props.length - 1; ++i) {
-    if (target[props[i]] === undefined || target[props[i]] === null) {
-      target[props[i]] = {};
+    const prop = props[i];
+    if (target[prop] === undefined || target[prop] === null || typeof target[prop] !== 'object') {
+      target[prop] = {};
     }
-    target = target[props[i]];
+    target = target[prop];
   }
-  target[props[props.length - 1]] = val;
+  if (props.length > 0) {
+    target[props[props.length - 1]] = val;
+  }
 };
 
 class UniCache {
   constructor(cacheName, options = {}) {
+    // ... (constructor logic, including revised this.log setup from previous responses)
+    if (!cacheName || typeof cacheName !== 'string') {
+      throw new Error('UniCache constructor requires a valid cacheName string.');
+    }
     this.cacheName = cacheName;
     this.options = options;
-    this.cacheType = options.cacheType || 'memory'; // Default to in-memory only
-    this.inMemoryData = {}; // Primary in-memory cache
-    this.backend = null; // Backend initialized if needed
+    this.cacheType = options.cacheType || 'memory';
+    this.inMemoryData = {};
+    this.backend = null;
+    this.isDirty = false; // Initialize dirty flag
 
-    // Set up logging function
-    this.log = options.logFunction || (() => {}); // Default to a no-op
-
-    // Initialize backend if required
-    this.initializeBackend();
-
-    // Setup signal handling if syncOnBreak is enabled
-    if (this.options.syncOnBreak) {
-      this.setupSignalHandlers();
-    }
-
-    //if (options.syncInterval) {
-    setInterval(() => this.sync(), options.syncInterval * 1000 || 86400000);
-    //}
-    if (this.options.debug) {
-      this.log(`UniCache sync interval: ${this.options.syncInterval || 86400} seconds`);
-    }
-  }
-// Dynamically load and initialize the appropriate backend
-  async initializeBackend() {
-    if (this.cacheType === 'file') {
-      const FileBackend = require('./backends/FileBackend');
-      this.backend = new FileBackend({
-        cacheName: this.cacheName,
-        savePath: this.options.savePath || './data',
-        debug: this.options.debug,
-        logFunction: this.log,
-      });
-      if (this.debug) {
-        this.log('[UniCache] Using FileBackend');
-        this.log('FileBackend is considered beta software and may not work as expected.');
-      }
-    } else if (this.cacheType === 'redis' || this.cacheType === 'valkey') {
-      const RedisBackend = require('./backends/RedisBackend');
-      this.backend = new RedisBackend({
-        cacheName: this.cacheName,
-        dbHost: this.options.dbHost,
-        dbPort: this.options.dbPort,
-        debug: this.options.debug,
-        logFunction: this.log,
-      });
-      if (this.debug) {
-        if (this.cacheType === 'valkey') {
-          this.log('[UniCache] Using RedisBackend for ValKey');
-        } else {
-          this.log('[UniCache] Using RedisBackend');
-        }
-        this.log('RedisBackend is highly experimental and may not work as expected.');
-      }
-    } else if (this.cacheType === 'mongodb') {
-      const MongoDBBackend = require('./backends/MongoDBBackend');
-      this.backend = new MongoDBBackend({
-        collectionName: this.cacheName,
-        dbName: this.options.dbName,
-        dbHost: this.options.dbHost,
-        dbPort: this.options.dbPort,
-        debug: this.options.debug,
-        logFunction: this.log,
-      });
-      if (this.debug) {
-        this.log('[UniCache] Using MongoDBBackend');
-        this.log('MongoDBBackend is highly experimental and may not work as expected.');
-      }
-    }
-
-    if (await this.existsObject(this.cacheName)) {
-      this.log(`[UniCache] Cache ${this.cacheName} exists. Populating inMemoryData.`);
+    if (options.logFunction) {
+      this.log = (...args) => options.logFunction('[UniCache]', ...args);
     } else {
-      this.log(`[UniCache] Cache ${this.cacheName} does not exist. Starting fresh.`);
+      this.log = this.options.debug ? (...args) => console.log('[UniCache]', ...args) : () => {};
+    }
+
+    this.log(`Initializing cache "${cacheName}" with type "${this.cacheType}"`);
+
+    const syncIntervalSeconds = this.options.syncInterval || 86400;
+    this.syncIntervalId = setInterval(() => this.sync(), syncIntervalSeconds * 1000);
+    this.log(`Sync interval set to: ${syncIntervalSeconds} seconds`);
+
+    if (this.options.syncOnBreak) {
+      this.setupSignalHandlers(); // Ensure this uses the version that exits correctly
     }
   }
 
-    // Signal handling for clean shutdown
-  setupSignalHandlers() {
-    const gracefulShutdown = async (signal) => {
-      console.log(`\n[UniCache] Received ${signal}, shutting down...`);
-
-      try {
-        this.log('[UniCache] Syncing cache before exit...');
-        await this.sync();
-        this.log('[UniCache] Cache sync completed.');
-      } catch (error) {
-        console.error('[UniCache] Error syncing cache:', error);
-      }
-
-      process.exit(0);
-    };
-
-    process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-    process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  async init() {
+    this.log(`Starting initialization for "${this.cacheName}"...`);
+    await this.initializeBackend(); // This calls _loadInitialDataFromBackend internally
+    this.log(`Initialization complete for "${this.cacheName}".`);
   }
 
-  // Check if the cache object exists in the backend and populate inMemoryData if it does
-  async existsObject(cacheName) {
-    if (cacheName === this.cacheName && this.backend) {
+  async initializeBackend() {
+    this.log(`Entering initializeBackend. Current cacheType: "${this.cacheType}"`);
+
+    if (this.cacheType === 'memory') {
+      this.isDirty = false;
+      this.log('[UniCache] Using in-memory cache only.');
+      this.backend = null;
+      return;
+    }
+
+    try {
+      this.log(`Attempting to setup backend for cacheType: "${this.cacheType}".`);
+      let BackendConstructor; // To hold the required constructor
+
+      switch (this.cacheType) {
+        case 'file':
+          this.log('Backend type selected: file. Attempting to require FileBackend...');
+          // The require call is specific to this case
+          BackendConstructor = require('./backends/FileBackend');
+          this.log('FileBackend required. Instantiating...');
+          this.backend = new BackendConstructor({
+            cacheName: this.cacheName,
+            savePath: this.options.savePath,
+            debug: this.options.debug,
+            logFunction: this.log,
+          });
+          this.log('[UniCache] Using FileBackend.');
+          break;
+
+        case 'redis':
+        case 'valkey':
+          this.log(`Backend type selected: ${this.cacheType} (using RedisBackend). Attempting to require RedisBackend...`);
+          // The require call is specific to this case
+          BackendConstructor = require('./backends/RedisBackend');
+          this.log('RedisBackend required. Instantiating...');
+          this.backend = new BackendConstructor({
+            // ... redis config ...
+          });
+          this.log(`[UniCache] Using RedisBackend (for ${this.cacheType}).`);
+          break;
+
+        case 'mongodb':
+          this.log('Backend type selected: mongodb. Attempting to require MongoDBBackend...');
+          BackendConstructor = require('./backends/MongoDBBackend');
+          this.log('MongoDBBackend required. Instantiating...');
+          this.backend = new BackendConstructor({
+            collectionName: this.cacheName,
+            dbName: this.options.dbName,
+            dbHost: this.options.dbHost,
+            dbPort: this.options.dbPort,
+            debug: this.options.debug,
+            logFunction: this.log,
+          });
+          this.log('[UniCache] Using MongoDBBackend.');
+          break;
+
+        case 'sqlite':
+          this.log('Backend type selected: sqlite. Attempting to require SQLiteBackend...');
+          BackendConstructor = require('./backends/SQLiteBackend');
+          this.log('SQLiteBackend required. Instantiating...');
+          this.backend = new BackendConstructor({
+            cacheName: this.cacheName,
+            savePath: this.options.savePath,
+            debug: this.options.debug,
+            logFunction: this.log,
+          });
+          this.log('[UniCache] Using SQLiteBackend.');
+          break;
+
+        default:
+          this.log(`cacheType "${this.cacheType}" is unknown or not explicitly handled.`);
+          this.log(`[UniCache] Unknown cacheType: "${this.cacheType}". Operating in memory-only mode.`);
+          this.cacheType = 'memory';
+          this.backend = null;
+          this.isDirty = false;
+          return; // Exit initializeBackend
+      }
+
+      this.log(`Backend instantiation for type "${this.options.cacheType}" finished. this.backend is ${this.backend ? 'set' : 'null'}.`);
+
+      if (this.backend) {
+        // If backend was successfully created
+        if (typeof this.backend.connect === 'function') {
+          this.log(`Attempting to connect to ${this.cacheType} backend...`);
+          await this.backend.connect();
+          this.log(`Backend ${this.cacheType} connected successfully.`);
+        } else {
+          this.log(`Backend ${this.cacheType} does not have a connect method (or this.backend is null).`);
+        }
+
+        this.log('Backend is set. Calling _loadInitialDataFromBackend...');
+        const loaded = await this._loadInitialDataFromBackend(); // Sets inMemoryData and isDirty
+        if (loaded) {
+          this.log(`_loadInitialDataFromBackend: Cache "${this.cacheName}" data loaded. isDirty: ${this.isDirty}`);
+        } else {
+          this.log(`_loadInitialDataFromBackend: Cache "${this.cacheName}" fresh/empty. isDirty: ${this.isDirty}`);
+        }
+      } else if (this.cacheType !== 'memory') {
+        // This condition implies a known cacheType was matched in the switch,
+        // but this.backend somehow didn't get assigned (e.g., require failed silently, constructor didn't assign)
+        // AND it didn't throw an error into the main catch block. This is highly defensive.
+        this.log(`CRITICAL: After known backend type selection ("${this.options.cacheType}"), this.backend is unexpectedly NULL and no error was caught during instantiation. Falling back to memory-only.`);
+        this.cacheType = 'memory';
+        this.backend = null;
+        this.isDirty = false;
+      }
+    } catch (error) {
+      // Prominent error logging
+      console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+      console.error(`[UniCache] CRITICAL ERROR IN initializeBackend for cache "${this.cacheName}", original type "${this.options.cacheType}":`, error);
+      console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!');
+
+      this.log(`[UniCache] Error initializing backend (original type "${this.options.cacheType}") for cache "${this.cacheName}": ${error.message}. Falling back to memory-only mode.`);
+      this.backend = null;
+      this.cacheType = 'memory';
+      this.isDirty = false;
+    }
+    this.log(`Exiting initializeBackend. Final this.backend is: ${this.backend ? 'set (object)' : 'null'}, Final this.cacheType is: "${this.cacheType}"`);
+  }
+
+  async _loadInitialDataFromBackend() {
+    if (!this.backend) {
+      this.inMemoryData = {}; // Should already be {}
+      this.isDirty = false;
+      return false;
+    }
+    try {
+      this.log(`Workspaceing initial data for "${this.cacheName}" from backend.`);
       const data = await this.backend.fetch();
       if (data && Object.keys(data).length > 0) {
         this.inMemoryData = data;
+        this.isDirty = false; // Data loaded from backend, consistent state
         return true;
       }
+      this.inMemoryData = {}; // Ensure it's empty if backend is empty
+      this.isDirty = false; // Empty in-memory matches empty backend, so not dirty
+      return false;
+    } catch (error) {
+      this.log(`Error fetching initial data from backend for "${this.cacheName}": ${error.message}`);
+      if (this.options.debug) console.error(error);
+      this.inMemoryData = {}; // On error, start with empty in-memory
+      this.isDirty = false; // Not dirty relative to this (failed) load attempt, considered fresh/empty
+      return false;
     }
-    return false;
   }
 
-  // Public method to get a property using dot notation
+  // Signal handler (ensure you're using the version that exits correctly)
+  setupSignalHandlers() {
+    // ... (Use the version from the previous response that correctly saves AND exits)
+    const handlerAttachedSymbol = Symbol.for(`uniCache_${this.cacheName}_SIGINT_HandlerAttached`);
+    if (process[handlerAttachedSymbol]) {
+      this.log(`Signal handlers for cache "${this.cacheName}" already attached by another instance or run.`);
+      return;
+    }
+    const gracefulShutdown = async (signal) => {
+      console.log(`\n[UniCache] Received ${signal} for cache "${this.cacheName}", initiating graceful shutdown...`);
+      process[handlerAttachedSymbol] = true;
+      clearInterval(this.syncIntervalId);
+      let exitCode = 0;
+      if (this.options.syncOnBreak) {
+        try {
+          this.log(`Attempting to sync cache "${this.cacheName}" before exit due to ${signal}...`);
+          await this.sync();
+          this.log(`Cache "${this.cacheName}" sync attempt completed successfully.`);
+        } catch (error) {
+          console.error(`[UniCache] Error syncing cache "${this.cacheName}" during shutdown:`, error);
+          exitCode = 1;
+        }
+      } else {
+        this.log(`syncOnBreak is false for "${this.cacheName}", no sync will be performed on ${signal}.`);
+      }
+      console.log(`[UniCache] Graceful shutdown sync processed for cache "${this.cacheName}". Exiting with code ${exitCode}.`);
+      setTimeout(() => {
+        process.exit(exitCode);
+      }, 100);
+    };
+    const signalListener = (signalType) => {
+      if (process[`uniCache_${this.cacheName}_ShutdownInProgress`]) {
+        console.log(`[UniCache] Shutdown for "${this.cacheName}" already in progress. Ignoring additional ${signalType}.`);
+        return;
+      }
+      process[`uniCache_${this.cacheName}_ShutdownInProgress`] = true;
+      gracefulShutdown(signalType).catch((internalError) => {
+        console.error(`[UniCache] CRITICAL UNHANDLED ERROR in gracefulShutdown itself for ${signalType}:`, internalError);
+        if (!process.exitCode) {
+          process.exit(2);
+        }
+      });
+    };
+    process.on('SIGINT', () => signalListener('SIGINT'));
+    process.on('SIGTERM', () => signalListener('SIGTERM'));
+    process[handlerAttachedSymbol] = true;
+    this.log('Signal handlers (SIGINT, SIGTERM) set up.');
+  }
+
+  /**
+   * Checks if the in-memory cache currently contains any data (i.e., is not empty).
+   * This method is typically called after `this.init()` has populated the in-memory cache.
+   * @returns {Promise<boolean>} True if in-memory data exists (cache has one or more keys), false otherwise.
+   */
+  async existsObject() {
+    // `this.inMemoryData` is populated by `init()`
+    const hasData = this.inMemoryData && Object.keys(this.inMemoryData).length > 0;
+    this.log(`existsObject (in-memory check): Cache "${this.cacheName}" ${hasData ? 'contains data' : 'is empty'}. In-memory keys: ${Object.keys(this.inMemoryData).length}`);
+    return hasData;
+  }
+
+  /**
+   * Checks if the in-memory cache currently contains any data.
+   * @returns {boolean} True if the cache is empty, false otherwise.
+   */
+  isEmpty() {
+    return Object.keys(this.inMemoryData).length === 0;
+  }
+
+  // ... (get, set, save, fetch, delete, has, clear, keys, count, add, subtract, push, retrieveObject, sync, close methods remain the same, using this.isDirty)
+  // Ensure their JSDoc is clear. For example, count() is async.
+  // If a synchronous count is desired for in-memory:
+  /**
+   * Gets the number of top-level keys in the in-memory cache. (Synchronous)
+   * @returns {number}
+   */
+  getInMemorySize() {
+    return Object.keys(this.inMemoryData).length;
+  }
+
   async get(key) {
-    return await getProperties(this.inMemoryData, key);
+    return getProperties(this.inMemoryData, key);
   }
 
-  // Public method to set a property using dot notation
-  async set(key, value, sync = false) {
-    await setProperties(this.inMemoryData, key, value);
-    if (sync || this.options.syncOnWrite) {
-      await this.sync();
+  async set(key, value, syncNow = this.options.syncOnWrite) {
+    setProperties(this.inMemoryData, key, value);
+    this.isDirty = true; // Mark as dirty
+    if (syncNow) {
+      await this.sync(); // sync() will check isDirty
     }
   }
 
-  // Save to in-memory cache and optionally sync
-  async save(data, sync = false) {
+  async save(data, syncNow = this.options.syncOnWrite) {
     Object.assign(this.inMemoryData, data);
-    if (sync || this.options.syncOnWrite) {
+    this.isDirty = true; // Mark as dirty
+    if (syncNow) {
       await this.sync();
     }
   }
 
-  // Fetch data from in-memory cache
   async fetch() {
-    return this.inMemoryData;
+    return { ...this.inMemoryData };
   }
 
-  // Delete key from in-memory cache and optionally sync
-  async delete(key, sync = false) {
-    delete this.inMemoryData[key];
-    if (sync || this.options.syncOnWrite) {
-      await this.sync();
+  async delete(key, syncNow = this.options.syncOnWrite) {
+    // ... (delete logic from your last provided version)
+    const props = Array.isArray(key) ? key : key.split('.');
+    let current = this.inMemoryData;
+    let parent = null;
+    let lastProp = null;
+
+    for (let i = 0; i < props.length; i++) {
+      const prop = props[i];
+      if (current === null || typeof current !== 'object' || !Object.prototype.hasOwnProperty.call(current, prop)) {
+        this.log(`Key path not found for deletion: ${key}`);
+        return; // Key not found, nothing to delete or mark dirty
+      }
+      if (i === props.length - 1) {
+        parent = current;
+        lastProp = prop;
+      } else {
+        current = current[prop];
+      }
+    }
+
+    if (parent && lastProp) {
+      delete parent[lastProp];
+      this.isDirty = true; // Mark as dirty
+      if (syncNow) {
+        await this.sync();
+      }
     }
   }
 
   async has(key) {
-    return Object.prototype.hasOwnProperty.call(this.inMemoryData, key);
+    return getProperties(this.inMemoryData, key) !== undefined;
   }
 
-  async clear(sync = false) {
+  async clear(syncNow = this.options.syncOnWrite) {
+    if (Object.keys(this.inMemoryData).length > 0) {
+      this.isDirty = true; // Mark as dirty only if it wasn't already empty
+    }
     this.inMemoryData = {};
-    if (sync || this.options.syncOnWrite) {
+    // If backend might not be empty, clearing in-memory makes it dirty relative to backend.
+    // So, always consider a clear operation as making it dirty if sync is intended.
+    if (Object.keys(this.inMemoryData).length === 0 && !this.isDirty) {
+      // Check if it was already clean and empty
+      // If you want to ensure sync for clear even if it was empty, always set dirty.
+      // For now, if it was already empty and clean, clearing it again doesn't make it "more" dirty.
+      // This might need refinement based on exact desired behavior.
+      // Let's simplify: if a clear is performed, it should be synced.
+    }
+    this.isDirty = true; // A clear operation means the state (empty) should be persisted.
+
+    if (syncNow) {
       await this.sync();
+    } else if (this.isDirty) {
+      // Log if not syncing now but it is dirty
+      this.log(`Cache "${this.cacheName}" cleared in memory and marked as dirty.`);
     }
   }
 
@@ -193,59 +387,97 @@ class UniCache {
     return Object.keys(this.inMemoryData);
   }
 
+  /**
+   * Gets the number of top-level keys in the in-memory cache.
+   * @returns {Promise<number>}
+   */
   async count() {
     return Object.keys(this.inMemoryData).length;
   }
 
-  async add(key, count, sync = false) {
-    this.inMemoryData[key] = (this.inMemoryData[key] || 0) + count;
-    if (sync || this.options.syncOnWrite) {
+  async add(key, count, syncNow = this.options.syncOnWrite) {
+    const currentValue = Number(getProperties(this.inMemoryData, key)) || 0;
+    setProperties(this.inMemoryData, key, currentValue + Number(count));
+    this.isDirty = true; // Mark as dirty
+    if (syncNow) {
       await this.sync();
     }
   }
 
-  async subtract(key, count, sync = false) {
-    this.inMemoryData[key] = (this.inMemoryData[key] || 0) - count;
-    if (sync || this.options.syncOnWrite) {
+  async subtract(key, count, syncNow = this.options.syncOnWrite) {
+    const currentValue = Number(getProperties(this.inMemoryData, key)) || 0;
+    setProperties(this.inMemoryData, key, currentValue - Number(count));
+    this.isDirty = true; // Mark as dirty
+    if (syncNow) {
       await this.sync();
     }
   }
 
-  async push(key, element, sync = false) {
-    if (!Array.isArray(this.inMemoryData[key])) {
-      this.inMemoryData[key] = [];
+  async push(key, element, syncNow = this.options.syncOnWrite) {
+    let arr = getProperties(this.inMemoryData, key);
+    if (!Array.isArray(arr)) {
+      arr = [];
+      setProperties(this.inMemoryData, key, arr); // This setProperties call will also mark dirty if it creates path
     }
-    this.inMemoryData[key].push(element);
-    if (sync || this.options.syncOnWrite) {
+    arr.push(element);
+    this.isDirty = true; // Mark as dirty
+    if (syncNow) {
       await this.sync();
     }
   }
 
   async retrieveObject(key) {
-    return this.inMemoryData[key];
+    return this.get(key);
   }
 
-  // Synchronize in-memory cache to backend
-  async sync() {
-    if (!this.backend && this.options.debug) {
-      this.log('[UniCache] In-memory mode; no sync performed.');
+  /**
+   * Synchronize in-memory cache to backend.
+   * Only performs sync if data is marked as dirty or if forceSync is true.
+   * @param {boolean} [forceSync=false] - If true, sync will be performed even if not marked dirty.
+   */
+  async sync(forceSync = false) {
+    if (!this.backend) {
+      this.log(`In-memory mode for "${this.cacheName}"; no sync performed.`);
       return;
     }
-    await this.backend.save(this.inMemoryData);
-    if (this.options.debug) {
-      this.log(`[UniCache] Synced to backend: ${this.cacheType}`);
-    } 
+    if (!this.isDirty && !forceSync) {
+      this.log(`No changes (isDirty=false) in "${this.cacheName}" to sync to backend. Skipping.`);
+      return;
+    }
+    try {
+      this.log(`Syncing "${this.cacheName}" (isDirty=${this.isDirty}, forceSync=${forceSync}) to backend: ${this.cacheType}`);
+      await this.backend.save({ ...this.inMemoryData }); // Save a shallow copy
+      this.isDirty = false; // Reset dirty flag *after* successful save
+      this.log(`Synced "${this.cacheName}" to backend. Dirty flag reset.`);
+    } catch (error) {
+      this.log(`Error syncing "${this.cacheName}" to backend: ${error.message}. Dirty flag remains true.`);
+      // Do not reset isDirty on error, as data is still out of sync.
+      if (this.options.debug) console.error(error);
+      throw error; // Rethrow to allow caller to handle sync errors
+    }
   }
 
   async close() {
-    if (!this.backend) {
-      return; // Nothing to close
+    // ... (same as before, ensures syncOnClose uses the dirty flag aware sync)
+    this.log(`Closing cache "${this.cacheName}"...`);
+    clearInterval(this.syncIntervalId);
+
+    if (this.options.syncOnClose && this.backend) {
+      this.log(`Performing final sync for "${this.cacheName}" on close (if dirty)...`);
+      await this.sync(); // Will respect dirty flag unless syncOnClose implies force
     }
 
-    if (this.options.syncOnClose) {
-      await this.sync();
+    if (this.backend && typeof this.backend.close === 'function') {
+      try {
+        this.log(`Closing backend for "${this.cacheName}"...`);
+        await this.backend.close();
+        this.log(`Backend for "${this.cacheName}" closed.`);
+      } catch (error) {
+        this.log(`Error closing backend for "${this.cacheName}": ${error.message}`);
+        if (this.options.debug) console.error(error);
+      }
     }
-    await this.backend.close();
+    this.log(`Cache "${this.cacheName}" closed.`);
   }
 }
 
