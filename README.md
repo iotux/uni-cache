@@ -27,7 +27,7 @@
 
 ## Features
 
-- **In-Memory Cache**: Fast and lightweight storage for ephemeral data.
+- **In-Memory Cache**: Fast and lightweight storage for short livved data.
 - **File Backend**: Persistent storage using JSON files.
 - **Redis Backend**: High-performance distributed caching.
 - **ValKey Backend**: Compatible with Redis, offering a lightweight alternative. (Uses RedisBackend currently.)
@@ -57,7 +57,7 @@ const Uni-Cache = require('uni-cache');
 
 // Create an in-memory cache
 const cache = new Uni-Cache('myCache', {
-  cacheType: 'memory', // Options: 'memory', 'file', 'redis', 'mongodb', 'valkey'
+  cacheType: 'memory', // Options: 'memory', 'file', 'redis', 'mongodb', 'valkey', 'sqlite'
   syncOnWrite: true,
   debug: true,
   logFunction: console.log, // Use custom logging
