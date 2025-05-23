@@ -31,6 +31,7 @@
 - **Redis Backend**: High-performance distributed caching.
 - **ValKey Backend**: Compatible with Redis, offering a lightweight alternative. (Uses RedisBackend currently.)
 - **MongoDB Backend**: Durable and scalable database-backed caching.
+- **SQLiteBackend**: A light weight SQL database, readily available on most Linux systems
 - **Flexible Synchronization**: Choose between direct, timed, or on-demand sync to storage backends.
 - **Custom Logging**: Integrate with your own logging solution.
 
@@ -68,47 +69,47 @@ const cache = new Uni-Cache('myCache', {
 
 ### Public Methods
 
-- **`set(key, value, sync)`**: Set a value in the cache.  
-  - `key`: String (supports dot notation for nested keys)  
-  - `value`: Any  
+- **`set(key, value, sync)`**: Set a value in the cache.
+  - `key`: String (supports dot notation for nested keys)
+  - `value`: Any
   - `sync`: Boolean (optional, syncs to backend immediately if true)
 
-- **`get(key)`**: Retrieve a value from the cache.  
+- **`get(key)`**: Retrieve a value from the cache.
   - `key`: String (supports dot notation)
 
-- **`delete(key, sync)`**: Delete a key from the cache.  
-  - `key`: String  
+- **`delete(key, sync)`**: Delete a key from the cache.
+  - `key`: String
   - `sync`: Boolean (optional)
 
-- **`has(key)`**: Check if a key exists in the cache.  
+- **`has(key)`**: Check if a key exists in the cache.
   - `key`: String
 
-- **`clear(sync)`**: Clear all data from the cache.  
+- **`clear(sync)`**: Clear all data from the cache.
   - `sync`: Boolean (optional)
 
-- **`keys()`**: Get all keys stored in the cache.  
+- **`keys()`**: Get all keys stored in the cache.
 
-- **`count()`**: Get the total number of keys in the cache.  
+- **`count()`**: Get the total number of keys in the cache.
 
-- **`add(key, count, sync)`**: Increment a numeric value.  
-  - `key`: String  
-  - `count`: Number  
+- **`add(key, count, sync)`**: Increment a numeric value.
+  - `key`: String
+  - `count`: Number
   - `sync`: Boolean (optional)
 
-- **`subtract(key, count, sync)`**: Decrement a numeric value.  
-  - `key`: String  
-  - `count`: Number  
+- **`subtract(key, count, sync)`**: Decrement a numeric value.
+  - `key`: String
+  - `count`: Number
   - `sync`: Boolean (optional)
 
-- **`push(key, element, sync)`**: Add an element to an array.  
-  - `key`: String  
-  - `element`: Any  
+- **`push(key, element, sync)`**: Add an element to an array.
+  - `key`: String
+  - `element`: Any
   - `sync`: Boolean (optional)
 
-- **`retrieveObject(key)`**: Retrieve a nested object.  
-  - `key`: String  
+- **`retrieveObject(key)`**: Retrieve a nested object.
+  - `key`: String
 
-- **`sync()`**: Synchronize in-memory cache to the backend.  
+- **`sync()`**: Synchronize in-memory cache to the backend.
 
 - **`close()`**: Close the backend connection (if applicable).
 
@@ -192,7 +193,20 @@ const cache = new Uni-Cache('myCache', {
 await cache.set('preferences.theme', 'light', true);
 console.log(await cache.get('preferences.theme')); // 'light'
 await cache.sync(); // Sync to ValKey backend
+```
+### SQLite Backend
 
+```javascript
+const cache = new Uni-Cache('myCache', {
+  cacheType: 'sqlite',
+  savePath: './data',
+  syncOnWrite: true,
+});
+
+await cache.set('config.theme', 'dark', true); // Sync to file immediately
+console.log(await cache.get('config.theme')); // 'dark'
+await cache.sync(); // Force sync to backend
+```
 ---
 
 ## License
@@ -204,4 +218,3 @@ This project is licensed under the MIT License. See the [LICENSE](LICENSE) file 
 ## Contributing
 
 Contributions are welcome! Please open an issue or submit a pull request on GitHub.
-
