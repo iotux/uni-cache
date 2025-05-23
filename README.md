@@ -19,6 +19,7 @@
     - [Redis Backend](#redis-backend)
     - [MongoDB Backend](#mongodb-backend)
     - [ValKey Backend](#valkey-backend)
+    - [SQLite Backend](#sqlite-backend)
   - [License](#license)
   - [Contributing](#contributing)
 
